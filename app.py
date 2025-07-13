@@ -198,16 +198,6 @@ if submit:
         except Exception as e:
             st.error(f"❌ Email failed: {e}")
 
-# --- One-time CSV Upload ---
-st.markdown("<h3 style='color:#1E88E5;'>📥 One-Time CSV Upload</h3>", unsafe_allow_html=True)
-uploaded_csv = st.file_uploader("Upload Existing Intern CSV", type=["csv"])
-if uploaded_csv is not None:
-    try:
-        df_upload = pd.read_csv(uploaded_csv)
-        df_upload.to_csv(CSV_FILE, index=False)
-        st.success("✅ CSV uploaded and saved.")
-    except Exception as e:
-        st.error(f"❌ Failed to load CSV: {e}")
 
 # --- Admin Panel ---
 st.divider()
@@ -225,5 +215,20 @@ with st.expander("🔐 Admin Panel"):
                 st.info("CSV file is empty.")
         else:
             st.info("CSV log not found.")
+
+    # --- One-time CSV Upload ---
+st.markdown("<h3 style='color:#1E88E5;'>📥 One-Time CSV Upload</h3>", unsafe_allow_html=True)
+uploaded_csv = st.file_uploader("Upload Existing Intern CSV", type=["csv"])
+if uploaded_csv is not None:
+    try:
+        df_upload = pd.read_csv(uploaded_csv)
+        df_upload.to_csv(CSV_FILE, index=False)
+        st.success("✅ CSV uploaded and saved.")
+    except Exception as e:
+        st.error(f"❌ Failed to load CSV: {e}")
+    
     elif admin_key:
         st.error("❌ Invalid key.")
+
+# 🔽 Footer
+st.markdown("<hr><center><small>© 2025 SkyHighes Technologies. All Rights Reserved.</small></center>", unsafe_allow_html=True)
