@@ -22,7 +22,7 @@ st.set_page_config("Completion Certificate Generator", layout="wide")
 EMAIL = st.secrets["email"]["user"]
 PASSWORD = st.secrets["email"]["password"]
 ADMIN_KEY = st.secrets["admin"]["key"]
-CSV_FILE = "completion_certificates.csv"
+CSV_FILE = "intern_data.csv"
 TEMPLATE_FILE = os.path.join(tempfile.gettempdir(), "completion_template.docx")
 LOGO = "logo.png"
 
