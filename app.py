@@ -40,14 +40,12 @@ if not os.path.exists(TEMPLATE_FILE):
     with open(TEMPLATE_FILE, "wb") as f:
         f.write(base64.b64decode(encoded_template))
 
-# --- Aspose Words Cloud Setup ---
-# config = asposewordscloud.Configuration(client_id=ASPOSE_ID, client_secret=ASPOSE_SECRET)
-# api = asposewordscloud.WordsApi(configuration=config)
-# --- Aspose Words Cloud Setup ---
-config = asposewordscloud.Configuration()
-config.client_id = ASPOSE_ID
-config.client_secret = ASPOSE_SECRET
-api = asposewordscloud.WordsApi(config)
+# --- Aspose Words Cloud Setup ---#
+asposewordscloud.Configuration.client_id = ASPOSE_ID
+asposewordscloud.Configuration.client_secret = ASPOSE_SECRET
+
+# ✅ Instantiate API
+api = asposewordscloud.WordsApi()
 
 
 def convert_to_pdf_asp(word_path, output_path):
