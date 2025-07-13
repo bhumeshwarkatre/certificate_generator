@@ -16,7 +16,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email import encoders
 import pandas as pd
-import asposewordscloud
+from asposewordscloud import Configuration, WordsApi
 from asposewordscloud.models.requests import UploadFileRequest, SaveAsRequest, DownloadFileRequest
 
 # --- Streamlit Page Setup ---
@@ -41,11 +41,11 @@ if not os.path.exists(TEMPLATE_FILE):
         f.write(base64.b64decode(encoded_template))
 
 # --- Aspose Words Cloud Setup ---#
-asposewordscloud.Configuration.client_id = ASPOSE_ID
-asposewordscloud.Configuration.client_secret = ASPOSE_SECRET
+config = Configuration()
+config.client_id = ASPOSE_ID
+config.client_secret = ASPOSE_SECRET
 
-# ✅ Instantiate API
-api = asposewordscloud.WordsApi()
+api = WordsApi(config)
 
 
 def convert_to_pdf_asp(word_path, output_path):
