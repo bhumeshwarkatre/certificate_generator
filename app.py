@@ -123,16 +123,6 @@ def save_to_csv(data, status="Sent"):
             writer.writerow(["Name", "Domain", "Months", "Start Date", "End Date", "Grade", "Certificate ID", "Email", "send_mail"])
         writer.writerow([data['name'], data['domain'], data['month'], data['start_date'], data['end_date'], data['grade'], data['c_id'], data['email'], status])
 
-# --- One-time CSV Upload ---
-st.markdown("<h3 style='color:#1E88E5;'>📥 One-Time CSV Upload</h3>", unsafe_allow_html=True)
-uploaded_csv = st.file_uploader("Upload Existing Intern CSV", type=["csv"])
-if uploaded_csv is not None:
-    try:
-        df_upload = pd.read_csv(uploaded_csv)
-        df_upload.to_csv(CSV_FILE, index=False)
-        st.success("✅ CSV uploaded and saved.")
-    except Exception as e:
-        st.error(f"❌ Failed to load CSV: {e}")
 
 # --- Form UI ---
 with st.form("certificate_form"):
@@ -207,6 +197,17 @@ if submit:
                 st.download_button("📥 Download Certificate", f, file_name=os.path.basename(pdf_path))
         except Exception as e:
             st.error(f"❌ Email failed: {e}")
+
+# --- One-time CSV Upload ---
+st.markdown("<h3 style='color:#1E88E5;'>📥 One-Time CSV Upload</h3>", unsafe_allow_html=True)
+uploaded_csv = st.file_uploader("Upload Existing Intern CSV", type=["csv"])
+if uploaded_csv is not None:
+    try:
+        df_upload = pd.read_csv(uploaded_csv)
+        df_upload.to_csv(CSV_FILE, index=False)
+        st.success("✅ CSV uploaded and saved.")
+    except Exception as e:
+        st.error(f"❌ Failed to load CSV: {e}")
 
 # --- Admin Panel ---
 st.divider()
