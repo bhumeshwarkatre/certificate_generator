@@ -17,15 +17,19 @@ from email.mime.multipart import MIMEMultipart
 from email import encoders
 import pandas as pd
 import asposewordscloud
-from asposewordscloud.models.requests import *
+from asposewordscloud.models.requests import UploadFileRequest, SaveAsRequest, DownloadFileRequest
 
-# --- Configuration ---
+# --- Streamlit Page Setup ---
 st.set_page_config("Completion Certificate Generator", layout="wide")
+
+# --- Secrets ---
 EMAIL = st.secrets["email"]["user"]
 PASSWORD = st.secrets["email"]["password"]
 ADMIN_KEY = st.secrets["admin"]["key"]
 ASPOSE_ID = st.secrets["aspose"]["client_id"]
 ASPOSE_SECRET = st.secrets["aspose"]["client_secret"]
+
+# --- Files ---
 CSV_FILE = "intern_data.csv"
 TEMPLATE_FILE = os.path.join(tempfile.gettempdir(), "completion_template.docx")
 LOGO = "logo.png"
@@ -36,44 +40,41 @@ if not os.path.exists(TEMPLATE_FILE):
     with open(TEMPLATE_FILE, "wb") as f:
         f.write(base64.b64decode(encoded_template))
 
-# --- Aspose API Setup ---
+# --- Aspose Words Cloud Setup ---
+config = asposewordscloud.Configuration(client_id=ASPOSE_ID, client_secret=ASPOSE_SECRET)
 api = asposewordscloud.WordsApi(configuration=config)
 
 def convert_to_pdf_asp(word_path, output_path):
-    filename = os.path.basename(word_path)
-    remote_name = filename
-    pdf_name = filename.replace(".docx", ".pdf")
+    remote_name = os.path.basename(word_path)
+    remote_pdf = remote_name.replace(".docx", ".pdf")
 
-    # Upload to Aspose Cloud
+    # Upload DOCX to Aspose Cloud
     with open(word_path, "rb") as f:
-        api.upload_file(asposewordscloud.models.requests.UploadFileRequest(f, f"Temp/{remote_name}"))
+        api.upload_file(UploadFileRequest(file_content=f, path=f"Temp/{remote_name}"))
 
-    # Convert DOCX to PDF
-    req = SaveAsRequest(name=f"Temp/{remote_name}", save_options_data={
-        "save_format": "pdf",
-        "file_name": f"Temp/{pdf_name}"
-    })
-    api.save_as(req)
+    # Convert to PDF in cloud
+    save_opts = asposewordscloud.SaveOptionsData(save_format="pdf", file_name=f"Temp/{remote_pdf}")
+    api.save_as(SaveAsRequest(name=f"Temp/{remote_name}", save_options_data=save_opts))
 
-    # Download the PDF
-    result = api.download_file(asposewordscloud.models.requests.DownloadFileRequest(f"Temp/{pdf_name}"))
+    # Download resulting PDF
+    result = api.download_file(DownloadFileRequest(path=f"Temp/{remote_pdf}"))
     with open(output_path, "wb") as f:
         f.write(result)
 
-# --- Style ---
+# --- CSS Styling ---
 st.markdown("""
 <style>
-    .title-text {
-        font-size: 2rem;
-        font-weight: 700;
-    }
-    .stButton>button {
-        background-color: #1E88E5;
-        color: white;
-        padding: 0.5rem 1.5rem;
-        border-radius: 8px;
-        font-weight: 600;
-    }
+.title-text {
+    font-size: 2rem;
+    font-weight: 700;
+}
+.stButton>button {
+    background-color: #1E88E5;
+    color: white;
+    padding: 0.5rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -88,7 +89,7 @@ with st.container():
 
 st.divider()
 
-# --- Utilities ---
+# --- Utility Functions ---
 def format_date(date_obj):
     return date_obj.strftime("%d %B %Y")
 
@@ -111,8 +112,7 @@ def send_email(receiver, pdf_path, data):
     msg['Subject'] = f"🎉 Completion Certificate - {data['name']}"
 
     html = f"""
-    <html>
-    <body style="font-family: Arial, sans-serif;">
+    <html><body>
         <p>Dear <strong>{data['name']}</strong>,</p>
         <p>Congratulations on completing your <strong>{data['month']} month</strong> internship at <strong>SkyHighes Technology</strong>!</p>
         <p><b>Details:</b></p>
@@ -125,8 +125,7 @@ def send_email(receiver, pdf_path, data):
         <p>Your certificate is attached as a PDF.</p>
         <p>All the best for your future!</p>
         <p><strong>SkyHighes Technology Team</strong></p>
-    </body>
-    </html>
+    </body></html>
     """
     msg.attach(MIMEText(html, 'html'))
 
@@ -134,8 +133,7 @@ def send_email(receiver, pdf_path, data):
         part = MIMEBase("application", "octet-stream")
         part.set_payload(f.read())
         encoders.encode_base64(part)
-        filename = os.path.basename(pdf_path)
-        part.add_header("Content-Disposition", f"attachment; filename={filename}")
+        part.add_header("Content-Disposition", f"attachment; filename={os.path.basename(pdf_path)}")
         msg.attach(part)
 
     with SMTP("smtp.gmail.com", 587) as server:
@@ -151,7 +149,7 @@ def save_to_csv(data, status="Sent"):
             writer.writerow(["Name", "Domain", "Months", "Start Date", "End Date", "Grade", "Certificate ID", "Email", "send_mail"])
         writer.writerow([data['name'], data['domain'], data['month'], data['start_date'], data['end_date'], data['grade'], data['c_id'], data['email'], status])
 
-# --- Form UI ---
+# --- Certificate Form ---
 with st.form("certificate_form"):
     st.subheader("🎓 Generate Completion Certificate")
 
@@ -241,6 +239,7 @@ with st.expander("🔐 Admin Panel"):
         else:
             st.info("CSV log not found.")
 
+        # Upload CSV once
         st.markdown("<h3 style='color:#1E88E5;'>📥 One-Time CSV Upload</h3>", unsafe_allow_html=True)
         uploaded_csv = st.file_uploader("Upload Existing Intern CSV", type=["csv"])
         if uploaded_csv is not None:
