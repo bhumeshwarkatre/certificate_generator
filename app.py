@@ -61,9 +61,8 @@ with st.container():
 st.divider()
 
 # --- Utilities ---
-def format_date(date_str):
-    dt = datetime.strptime(date_str, "%Y-%m-%d")
-    return dt.strftime("%d %B %Y")
+def format_date(date_obj):
+    return date_obj.strftime("%d %B %Y")
 
 def generate_certificate_key():
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=9))
@@ -116,14 +115,24 @@ def send_email(receiver, pdf_path, data):
         server.login(EMAIL, PASSWORD)
         server.send_message(msg)
 
-# --- CSV Save ---
-def save_to_csv(data):
+def save_to_csv(data, status="Sent"):
     exists = os.path.exists(CSV_FILE)
     with open(CSV_FILE, mode='a', newline='') as f:
         writer = csv.writer(f)
         if not exists:
-            writer.writerow(["Certificate ID", "Name", "Domain", "Start Date", "End Date", "Months", "Grade", "Email"])
-        writer.writerow([data['c_id'], data['name'], data['domain'], data['start_date'], data['end_date'], data['month'], data['grade'], data['email']])
+            writer.writerow(["Name", "Domain", "Months", "Start Date", "End Date", "Grade", "Certificate ID", "Email", "send_mail"])
+        writer.writerow([data['name'], data['domain'], data['month'], data['start_date'], data['end_date'], data['grade'], data['c_id'], data['email'], status])
+
+# --- One-time CSV Upload ---
+st.markdown("<h3 style='color:#1E88E5;'>📥 One-Time CSV Upload</h3>", unsafe_allow_html=True)
+uploaded_csv = st.file_uploader("Upload Existing Intern CSV", type=["csv"])
+if uploaded_csv is not None:
+    try:
+        df_upload = pd.read_csv(uploaded_csv)
+        df_upload.to_csv(CSV_FILE, index=False)
+        st.success("✅ CSV uploaded and saved.")
+    except Exception as e:
+        st.error(f"❌ Failed to load CSV: {e}")
 
 # --- Form UI ---
 with st.form("certificate_form"):
@@ -162,18 +171,19 @@ if submit:
             "name": name.strip(),
             "domain": domain.strip(),
             "month": month,
-            "start_date": format_date(str(start_date)),
-            "end_date": format_date(str(end_date)),
+            "start_date": format_date(start_date),
+            "end_date": format_date(end_date),
             "grade": grade,
             "c_id": cert_id,
             "email": email.strip()
         }
 
         save_to_csv(data)
+
         doc = DocxTemplate(TEMPLATE_FILE)
         doc.render(data)
 
-        qr_path = generate_qr(f"{name}, {domain}, {month}, {start_date}, {end_date}, {grade}, {cert_id}")
+        qr_path = generate_qr(f"{name}, {domain}, {month}, {data['start_date']}, {data['end_date']}, {grade}, {cert_id}")
         try:
             doc.tables[0].rows[0].cells[0].paragraphs[0].add_run().add_picture(qr_path, width=Inches(1.5))
         except:
@@ -181,15 +191,13 @@ if submit:
 
         docx_path = os.path.join(tempfile.gettempdir(), f"Certificate_{name}.docx")
         pdf_path = os.path.join(tempfile.gettempdir(), f"Certificate_{name}.pdf")
-
         doc.save(docx_path)
 
         try:
-            # Convert DOCX to PDF using Aspose (if available)
             from docx2pdf import convert
             convert(docx_path, pdf_path)
         except:
-            st.warning("⚠️ PDF conversion failed. DOCX saved instead.")
+            st.warning("⚠️ PDF conversion failed. Using DOCX instead.")
             pdf_path = docx_path
 
         try:
@@ -198,7 +206,7 @@ if submit:
             with open(pdf_path, "rb") as f:
                 st.download_button("📥 Download Certificate", f, file_name=os.path.basename(pdf_path))
         except Exception as e:
-            st.error(f"❌ Error occurred: {e}")
+            st.error(f"❌ Email failed: {e}")
 
 # --- Admin Panel ---
 st.divider()
