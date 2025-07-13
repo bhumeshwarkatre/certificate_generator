@@ -216,16 +216,16 @@ with st.expander("🔐 Admin Panel"):
         else:
             st.info("CSV log not found.")
 
-    # --- One-time CSV Upload ---
-st.markdown("<h3 style='color:#1E88E5;'>📥 One-Time CSV Upload</h3>", unsafe_allow_html=True)
-uploaded_csv = st.file_uploader("Upload Existing Intern CSV", type=["csv"])
-if uploaded_csv is not None:
-    try:
-        df_upload = pd.read_csv(uploaded_csv)
-        df_upload.to_csv(CSV_FILE, index=False)
-        st.success("✅ CSV uploaded and saved.")
-    except Exception as e:
-        st.error(f"❌ Failed to load CSV: {e}")
+            # --- One-time CSV Upload ---
+        st.markdown("<h3 style='color:#1E88E5;'>📥 One-Time CSV Upload</h3>", unsafe_allow_html=True)
+        uploaded_csv = st.file_uploader("Upload Existing Intern CSV", type=["csv"])
+        if uploaded_csv is not None:
+            try:
+                df_upload = pd.read_csv(uploaded_csv)
+                df_upload.to_csv(CSV_FILE, index=False)
+                st.success("✅ CSV uploaded and saved.")
+            except Exception as e:
+                st.error(f"❌ Failed to load CSV: {e}")
     
     elif admin_key:
         st.error("❌ Invalid key.")
