@@ -16,12 +16,16 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email import encoders
 import pandas as pd
+import asposewordscloud
+from asposewordscloud.models.requests import *
 
 # --- Configuration ---
 st.set_page_config("Completion Certificate Generator", layout="wide")
 EMAIL = st.secrets["email"]["user"]
 PASSWORD = st.secrets["email"]["password"]
 ADMIN_KEY = st.secrets["admin"]["key"]
+ASPOSE_ID = st.secrets["aspose"]["client_id"]
+ASPOSE_SECRET = st.secrets["aspose"]["client_secret"]
 CSV_FILE = "intern_data.csv"
 TEMPLATE_FILE = os.path.join(tempfile.gettempdir(), "completion_template.docx")
 LOGO = "logo.png"
@@ -31,6 +35,30 @@ if not os.path.exists(TEMPLATE_FILE):
     encoded_template = st.secrets["template_base64"]["template_base64"]
     with open(TEMPLATE_FILE, "wb") as f:
         f.write(base64.b64decode(encoded_template))
+
+# --- Aspose API Setup ---
+api = asposewordscloud.WordsApi(asposewordscloud.Configuration(ASPOSE_ID, ASPOSE_SECRET))
+
+def convert_to_pdf_asp(word_path, output_path):
+    filename = os.path.basename(word_path)
+    remote_name = filename
+    pdf_name = filename.replace(".docx", ".pdf")
+
+    # Upload to Aspose Cloud
+    with open(word_path, "rb") as f:
+        api.upload_file(asposewordscloud.models.requests.UploadFileRequest(f, f"Temp/{remote_name}"))
+
+    # Convert DOCX to PDF
+    req = SaveAsRequest(name=f"Temp/{remote_name}", save_options_data={
+        "save_format": "pdf",
+        "file_name": f"Temp/{pdf_name}"
+    })
+    api.save_as(req)
+
+    # Download the PDF
+    result = api.download_file(asposewordscloud.models.requests.DownloadFileRequest(f"Temp/{pdf_name}"))
+    with open(output_path, "wb") as f:
+        f.write(result)
 
 # --- Style ---
 st.markdown("""
@@ -123,7 +151,6 @@ def save_to_csv(data, status="Sent"):
             writer.writerow(["Name", "Domain", "Months", "Start Date", "End Date", "Grade", "Certificate ID", "Email", "send_mail"])
         writer.writerow([data['name'], data['domain'], data['month'], data['start_date'], data['end_date'], data['grade'], data['c_id'], data['email'], status])
 
-
 # --- Form UI ---
 with st.form("certificate_form"):
     st.subheader("🎓 Generate Completion Certificate")
@@ -184,10 +211,9 @@ if submit:
         doc.save(docx_path)
 
         try:
-            from docx2pdf import convert
-            convert(docx_path, pdf_path)
-        except:
-            st.warning("⚠️ PDF conversion failed. Using DOCX instead.")
+            convert_to_pdf_asp(docx_path, pdf_path)
+        except Exception as e:
+            st.error(f"❌ Aspose conversion failed: {e}")
             pdf_path = docx_path
 
         try:
@@ -197,7 +223,6 @@ if submit:
                 st.download_button("📥 Download Certificate", f, file_name=os.path.basename(pdf_path))
         except Exception as e:
             st.error(f"❌ Email failed: {e}")
-
 
 # --- Admin Panel ---
 st.divider()
@@ -216,7 +241,6 @@ with st.expander("🔐 Admin Panel"):
         else:
             st.info("CSV log not found.")
 
-            # --- One-time CSV Upload ---
         st.markdown("<h3 style='color:#1E88E5;'>📥 One-Time CSV Upload</h3>", unsafe_allow_html=True)
         uploaded_csv = st.file_uploader("Upload Existing Intern CSV", type=["csv"])
         if uploaded_csv is not None:
@@ -226,9 +250,8 @@ with st.expander("🔐 Admin Panel"):
                 st.success("✅ CSV uploaded and saved.")
             except Exception as e:
                 st.error(f"❌ Failed to load CSV: {e}")
-    
     elif admin_key:
         st.error("❌ Invalid key.")
 
-# 🔽 Footer
+# --- Footer ---
 st.markdown("<hr><center><small>© 2025 SkyHighes Technologies. All Rights Reserved.</small></center>", unsafe_allow_html=True)
