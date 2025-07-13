@@ -37,7 +37,7 @@ if not os.path.exists(TEMPLATE_FILE):
         f.write(base64.b64decode(encoded_template))
 
 # --- Aspose API Setup ---
-api = asposewordscloud.WordsApi(asposewordscloud.Configuration(ASPOSE_ID, ASPOSE_SECRET))
+api = asposewordscloud.WordsApi(configuration=config)
 
 def convert_to_pdf_asp(word_path, output_path):
     filename = os.path.basename(word_path)
