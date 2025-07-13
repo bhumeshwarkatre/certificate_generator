@@ -41,8 +41,14 @@ if not os.path.exists(TEMPLATE_FILE):
         f.write(base64.b64decode(encoded_template))
 
 # --- Aspose Words Cloud Setup ---
-config = asposewordscloud.Configuration(client_id=ASPOSE_ID, client_secret=ASPOSE_SECRET)
-api = asposewordscloud.WordsApi(configuration=config)
+# config = asposewordscloud.Configuration(client_id=ASPOSE_ID, client_secret=ASPOSE_SECRET)
+# api = asposewordscloud.WordsApi(configuration=config)
+# --- Aspose Words Cloud Setup ---
+config = asposewordscloud.Configuration()
+config.client_id = ASPOSE_ID
+config.client_secret = ASPOSE_SECRET
+api = asposewordscloud.WordsApi(config)
+
 
 def convert_to_pdf_asp(word_path, output_path):
     remote_name = os.path.basename(word_path)
