@@ -1,0 +1,6 @@
+streamlit
+docxtpl
+python-docx
+qrcode
+pandas
+aspose-words-cloud
