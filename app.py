@@ -17,10 +17,11 @@ from email.mime.multipart import MIMEMultipart
 from email import encoders
 import pandas as pd
 
-# ✅ Aspose Imports
-from asposewordscloud import Configuration, WordsApi
+# ✅ Aspose Cloud Imports (same as 'offer')
+import asposewordscloud
+from asposewordscloud.apis.words_api import WordsApi
 from asposewordscloud.models.requests import UploadFileRequest, SaveAsRequest, DownloadFileRequest
-from asposewordscloud.models import SaveOptionsData
+from asposewordscloud.models import PdfSaveOptionsData
 
 # --- Streamlit Page Setup ---
 st.set_page_config("Completion Certificate Generator", layout="wide")
@@ -43,29 +44,27 @@ if not os.path.exists(TEMPLATE_FILE):
     with open(TEMPLATE_FILE, "wb") as f:
         f.write(base64.b64decode(encoded_template))
 
-# ✅ Aspose Setup
-config = Configuration()
-config.client_id = ASPOSE_ID
-config.client_secret = ASPOSE_SECRET
-api = WordsApi(config)
+# ✅ Aspose Setup (same as 'offer')
+words_api = WordsApi(ASPOSE_ID, ASPOSE_SECRET)
 
-# ✅ Convert DOCX to PDF using Aspose
+# ✅ DOCX to PDF using Aspose (same logic from 'offer')
 def convert_to_pdf_asp(word_path, output_path):
-    remote_name = os.path.basename(word_path)
-    remote_pdf = remote_name.replace(".docx", ".pdf")
+    cloud_doc_name = os.path.basename(word_path)
+    cloud_pdf_name = cloud_doc_name.replace(".docx", ".pdf")
 
-    # Upload DOCX to cloud
+    # Upload DOCX to Aspose Cloud
     with open(word_path, "rb") as f:
-        api.upload_file(UploadFileRequest(file_content=f, path=f"Temp/{remote_name}"))
+        words_api.upload_file(UploadFileRequest(f, cloud_doc_name))
 
-    # Convert in cloud to PDF
-    save_opts = SaveOptionsData(save_format="pdf", file_name=f"Temp/{remote_pdf}")
-    api.save_as(SaveAsRequest(name=f"Temp/{remote_name}", save_options_data=save_opts))
+    # Convert to PDF in cloud
+    save_opts = PdfSaveOptionsData(file_name=cloud_pdf_name)
+    save_as_request = SaveAsRequest(name=cloud_doc_name, save_options_data=save_opts)
+    words_api.save_as(save_as_request)
 
-    # Download back
-    result = api.download_file(DownloadFileRequest(path=f"Temp/{remote_pdf}"))
+    # Download converted PDF
+    pdf_stream = words_api.download_file(DownloadFileRequest(cloud_pdf_name))
     with open(output_path, "wb") as f:
-        f.write(result)
+        f.write(pdf_stream)
 
 # --- CSS Styling ---
 st.markdown("""
@@ -218,7 +217,7 @@ if submit:
             convert_to_pdf_asp(docx_path, pdf_path)
         except Exception as e:
             st.error(f"❌ Aspose conversion failed: {e}")
-            pdf_path = docx_path
+            pdf_path = docx_path  # fallback
 
         try:
             send_email(email, pdf_path, data)
