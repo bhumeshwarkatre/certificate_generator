@@ -16,8 +16,11 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email import encoders
 import pandas as pd
+
+# ✅ Aspose Imports
 from asposewordscloud import Configuration, WordsApi
 from asposewordscloud.models.requests import UploadFileRequest, SaveAsRequest, DownloadFileRequest
+from asposewordscloud.models import SaveOptionsData
 
 # --- Streamlit Page Setup ---
 st.set_page_config("Completion Certificate Generator", layout="wide")
@@ -26,8 +29,8 @@ st.set_page_config("Completion Certificate Generator", layout="wide")
 EMAIL = st.secrets["email"]["user"]
 PASSWORD = st.secrets["email"]["password"]
 ADMIN_KEY = st.secrets["admin"]["key"]
-ASPOSE_ID = st.secrets["aspose"]["client_id"]
-ASPOSE_SECRET = st.secrets["aspose"]["client_secret"]
+ASPOSE_ID = st.secrets["aspose"]["app_sid"]
+ASPOSE_SECRET = st.secrets["aspose"]["app_key"]
 
 # --- Files ---
 CSV_FILE = "intern_data.csv"
@@ -40,27 +43,26 @@ if not os.path.exists(TEMPLATE_FILE):
     with open(TEMPLATE_FILE, "wb") as f:
         f.write(base64.b64decode(encoded_template))
 
-# --- Aspose Words Cloud Setup ---#
+# ✅ Aspose Setup
 config = Configuration()
 config.client_id = ASPOSE_ID
 config.client_secret = ASPOSE_SECRET
-
 api = WordsApi(config)
 
-
+# ✅ Convert DOCX to PDF using Aspose
 def convert_to_pdf_asp(word_path, output_path):
     remote_name = os.path.basename(word_path)
     remote_pdf = remote_name.replace(".docx", ".pdf")
 
-    # Upload DOCX to Aspose Cloud
+    # Upload DOCX to cloud
     with open(word_path, "rb") as f:
         api.upload_file(UploadFileRequest(file_content=f, path=f"Temp/{remote_name}"))
 
-    # Convert to PDF in cloud
-    save_opts = asposewordscloud.SaveOptionsData(save_format="pdf", file_name=f"Temp/{remote_pdf}")
+    # Convert in cloud to PDF
+    save_opts = SaveOptionsData(save_format="pdf", file_name=f"Temp/{remote_pdf}")
     api.save_as(SaveAsRequest(name=f"Temp/{remote_name}", save_options_data=save_opts))
 
-    # Download resulting PDF
+    # Download back
     result = api.download_file(DownloadFileRequest(path=f"Temp/{remote_pdf}"))
     with open(output_path, "wb") as f:
         f.write(result)
@@ -153,7 +155,7 @@ def save_to_csv(data, status="Sent"):
             writer.writerow(["Name", "Domain", "Months", "Start Date", "End Date", "Grade", "Certificate ID", "Email", "send_mail"])
         writer.writerow([data['name'], data['domain'], data['month'], data['start_date'], data['end_date'], data['grade'], data['c_id'], data['email'], status])
 
-# --- Certificate Form ---
+# --- Form UI ---
 with st.form("certificate_form"):
     st.subheader("🎓 Generate Completion Certificate")
 
@@ -243,7 +245,6 @@ with st.expander("🔐 Admin Panel"):
         else:
             st.info("CSV log not found.")
 
-        # Upload CSV once
         st.markdown("<h3 style='color:#1E88E5;'>📥 One-Time CSV Upload</h3>", unsafe_allow_html=True)
         uploaded_csv = st.file_uploader("Upload Existing Intern CSV", type=["csv"])
         if uploaded_csv is not None:
