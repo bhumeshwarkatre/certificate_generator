@@ -102,20 +102,13 @@ def generate_certificate_key():
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=9))
 
 def generate_qr(data):
-    qr = qrcode.QRCode(box_size=10, border=0)  # No border = no extra padding
+    qr = qrcode.QRCode(box_size=10, border=4)
     qr.add_data(data)
     qr.make(fit=True)
-    img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
-
-    # Crop extra white area
-    bbox = img.getbbox()
-    img_cropped = img.crop(bbox)
-
-    # Save
+    img = qr.make_image(fill_color="black", back_color="white")
     path = os.path.join(tempfile.gettempdir(), "qr.png")
-    img_cropped.save(path)
+    img.save(path)
     return path
-
 
 def send_email(receiver, pdf_path, data):
     msg = MIMEMultipart()
@@ -212,7 +205,7 @@ if submit:
 
         qr_path = generate_qr(f"{name}, {domain}, {month}, {data['start_date']}, {data['end_date']}, {grade}, {cert_id}")
         try:
-            doc.tables[0].rows[0].cells[0].paragraphs[0].add_run().add_picture(qr_path, width=Inches(1.4))
+            doc.tables[0].rows[0].cells[0].paragraphs[0].add_run().add_picture(qr_path, width=Inches(1.5))
         except:
             st.warning("⚠️ QR code insertion failed.")
 
