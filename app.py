@@ -9,7 +9,7 @@ import base64
 import streamlit as st
 from datetime import datetime
 from smtplib import SMTP
-from docxtpl import DocxTemplate, InlineImage
+from docxtpl import DocxTemplate
 from docx.shared import Inches
 from email.mime.base import MIMEBase
 from email.mime.text import MIMEText
@@ -61,34 +61,6 @@ def convert_to_pdf_asp(word_path, output_path):
     pdf_stream = words_api.download_file(DownloadFileRequest(cloud_pdf_name))
     with open(output_path, "wb") as f:
         f.write(pdf_stream)
-
-# --- CSS Styling ---
-st.markdown("""
-<style>
-.title-text {
-    font-size: 2rem;
-    font-weight: 700;
-}
-.stButton>button {
-    background-color: #1E88E5;
-    color: white;
-    padding: 0.5rem 1.5rem;
-    border-radius: 8px;
-    font-weight: 600;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# --- Header ---
-with st.container():
-    col_logo, col_title = st.columns([1, 6])
-    with col_logo:
-        if os.path.exists(LOGO):
-            st.image(LOGO, width=80)
-    with col_title:
-        st.markdown('<div class="title-text">SkyHighes Technologies Completion Certificate Portal</div>', unsafe_allow_html=True)
-
-st.divider()
 
 # --- Utility Functions ---
 def format_date(date_obj):
@@ -155,7 +127,34 @@ def save_to_csv(data, status="Sent"):
             writer.writerow(["Name", "Domain", "Months", "Start Date", "End Date", "Grade", "Certificate ID", "Email", "send_mail"])
         writer.writerow([data['name'], data['domain'], data['month'], data['start_date'], data['end_date'], data['grade'], data['c_id'], data['email'], status])
 
-# --- Form UI ---
+# --- UI ---
+st.markdown("""
+<style>
+.title-text {
+    font-size: 2rem;
+    font-weight: 700;
+}
+.stButton>button {
+    background-color: #1E88E5;
+    color: white;
+    padding: 0.5rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+}
+</style>
+""", unsafe_allow_html=True)
+
+with st.container():
+    col_logo, col_title = st.columns([1, 6])
+    with col_logo:
+        if os.path.exists(LOGO):
+            st.image(LOGO, width=80)
+    with col_title:
+        st.markdown('<div class="title-text">SkyHighes Technologies Completion Certificate Portal</div>', unsafe_allow_html=True)
+
+st.divider()
+
+# --- Form ---
 with st.form("certificate_form"):
     st.subheader("🎓 Generate Completion Certificate")
 
@@ -178,7 +177,7 @@ with st.form("certificate_form"):
     grade = st.selectbox("Grade", ["A+", "A", "B+", "B", "C"])
     submit = st.form_submit_button("🎯 Generate & Send Certificate")
 
-# --- Submit Action ---
+# --- Action ---
 if submit:
     if not all([name, domain, email]):
         st.error("❌ Please fill all fields.")
@@ -202,18 +201,17 @@ if submit:
         save_to_csv(data)
 
         doc = DocxTemplate(TEMPLATE_FILE)
-
-        qr_path = generate_qr(f"{name}, {domain}, {month}, {data['start_date']}, {data['end_date']}, {grade}, {cert_id}")
-        if not os.path.exists(qr_path):
-            st.error(f"❌ QR code image not found: {qr_path}")
-        else:
-            try:
-                qr_img = InlineImage(doc, qr_path, width=Inches(1.4))
-                data["qr"] = qr_img
-            except Exception as e:
-                st.warning(f"⚠️ Failed to insert QR image: {e}")
-
         doc.render(data)
+
+        # --- Insert QR Code ---
+        qr_path = generate_qr(f"{name}, {domain}, {month}, {data['start_date']}, {data['end_date']}, {grade}, {cert_id}")
+        if os.path.exists(qr_path):
+            try:
+                doc.tables[0].rows[0].cells[0].paragraphs[0].add_run().add_picture(qr_path, width=Inches(1.4))
+            except Exception as e:
+                st.warning(f"⚠️ QR code insert failed: {e}")
+        else:
+            st.error("❌ QR code not found.")
 
         docx_path = os.path.join(tempfile.gettempdir(), f"Certificate_{name}.docx")
         pdf_path = os.path.join(tempfile.gettempdir(), f"Certificate_{name}.pdf")
@@ -250,7 +248,6 @@ with st.expander("🔐 Admin Panel"):
         else:
             st.info("CSV log not found.")
 
-        st.markdown("<h3 style='color:#1E88E5;'>📥 One-Time CSV Upload</h3>", unsafe_allow_html=True)
         uploaded_csv = st.file_uploader("Upload Existing Intern CSV", type=["csv"])
         if uploaded_csv is not None:
             try:
