@@ -10,6 +10,7 @@ import streamlit as st
 from datetime import datetime
 from smtplib import SMTP
 from docxtpl import DocxTemplate
+from docxtpl import InlineImage
 from docx.shared import Inches
 from email.mime.base import MIMEBase
 from email.mime.text import MIMEText
@@ -209,9 +210,9 @@ if submit:
             st.error(f"❌ QR code image not found: {qr_path}")
         else:
             try:
-                doc.tables[0].rows[0].cells[0].paragraphs[0].add_run().add_picture(qr_path, width=Inches(1.5))
-            except Exception as e:
-                st.warning(f"⚠️ QR code insertion failed: {e}")
+                qr_img = InlineImage(doc, qr_path, width=Inches(1.4))
+                data["qr"] = qr_img
+                doc.render(data)
 
         docx_path = os.path.join(tempfile.gettempdir(), f"Certificate_{name}.docx")
         pdf_path = os.path.join(tempfile.gettempdir(), f"Certificate_{name}.pdf")
