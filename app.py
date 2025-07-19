@@ -17,33 +17,34 @@ from email.mime.multipart import MIMEMultipart
 from email import encoders
 import pandas as pd
 
-# ✅ Aspose Words Cloud
+# ✅ Aspose Cloud
 import asposewordscloud
 from asposewordscloud.apis.words_api import WordsApi
 from asposewordscloud.models.requests import UploadFileRequest, SaveAsRequest, DownloadFileRequest
 from asposewordscloud.models import PdfSaveOptionsData
 
-# --- Streamlit Page ---
+# --- Streamlit Setup ---
 st.set_page_config("Completion Certificate Generator", layout="wide")
 
-# --- Load Secrets ---
+# --- Secrets ---
 EMAIL = st.secrets["email"]["user"]
 PASSWORD = st.secrets["email"]["password"]
 ADMIN_KEY = st.secrets["admin"]["key"]
 ASPOSE_ID = st.secrets["aspose"]["app_sid"]
 ASPOSE_SECRET = st.secrets["aspose"]["app_key"]
 
+# --- Files ---
 CSV_FILE = "intern_data.csv"
 TEMPLATE_FILE = os.path.join(tempfile.gettempdir(), "completion_template.docx")
 LOGO = "logo.png"
 
-# --- Load DOCX Template from base64 ---
+# --- Load Template from base64 ---
 if not os.path.exists(TEMPLATE_FILE):
     encoded_template = st.secrets["template_base64"]["template_base64"]
     with open(TEMPLATE_FILE, "wb") as f:
         f.write(base64.b64decode(encoded_template))
 
-# --- Aspose Setup ---
+# ✅ Aspose Setup
 words_api = WordsApi(ASPOSE_ID, ASPOSE_SECRET)
 
 def convert_to_pdf_asp(word_path, output_path):
@@ -61,6 +62,7 @@ def convert_to_pdf_asp(word_path, output_path):
     with open(output_path, "wb") as f:
         f.write(pdf_stream)
 
+# --- Utilities ---
 def format_date(date_obj):
     return date_obj.strftime("%d %B %Y")
 
@@ -91,15 +93,13 @@ def send_email(receiver, pdf_path, data):
     <html><body>
         <p>Dear <strong>{data['name']}</strong>,</p>
         <p>Congratulations on completing your <strong>{data['month']} month</strong> internship at <strong>SkyHighes Technology</strong>!</p>
-        <p><b>Details:</b></p>
         <ul>
             <li><strong>Domain:</strong> {data['domain']}</li>
             <li><strong>Duration:</strong> {data['start_date']} to {data['end_date']}</li>
             <li><strong>Grade:</strong> {data['grade']}</li>
             <li><strong>Certificate ID:</strong> {data['c_id']}</li>
         </ul>
-        <p>Your certificate is attached as a PDF.</p>
-        <p>All the best for your future!</p>
+        <p>Your certificate is attached.</p>
         <p><strong>SkyHighes Technology Team</strong></p>
     </body></html>
     """
@@ -155,6 +155,7 @@ st.divider()
 # --- Form ---
 with st.form("certificate_form"):
     st.subheader("🎓 Generate Completion Certificate")
+
     col1, col2, col3 = st.columns(3)
     with col1:
         name = st.text_input("Intern Name")
@@ -174,14 +175,14 @@ with st.form("certificate_form"):
     grade = st.selectbox("Grade", ["A+", "A", "B+", "B", "C"])
     submit = st.form_submit_button("🎯 Generate & Send Certificate")
 
-# --- Submission ---
+# --- Generate ---
 if submit:
     if not all([name, domain, email]):
         st.error("❌ Please fill all fields.")
     elif end_date < start_date:
         st.warning("⚠️ End date cannot be before start date.")
     elif not re.match(r"[^@]+@[^@]+\.[^@]+", email):
-        st.warning("⚠️ Invalid email format.")
+        st.warning("⚠️ Invalid email.")
     else:
         cert_id = generate_certificate_key()
         data = {
@@ -198,23 +199,19 @@ if submit:
         save_to_csv(data)
 
         doc = DocxTemplate(TEMPLATE_FILE)
-        doc.render(data)
 
+        # --- Insert QR Before Rendering ---
         qr_path = generate_qr(f"{name}, {domain}, {month}, {data['start_date']}, {data['end_date']}, {grade}, {cert_id}")
-        if os.path.exists(qr_path):
-            try:
-                # ✅ Safe QR placement: ensure table & paragraph exist
-                if len(doc.tables) > 0:
-                    cell = doc.tables[0].rows[0].cells[0]
-                    if not cell.paragraphs:
-                        cell.add_paragraph()
-                    cell.paragraphs[0].add_run().add_picture(qr_path, width=Inches(1.5))
-                else:
-                    st.warning("⚠️ Template must have at least a 1x1 table to insert QR code.")
-            except Exception as e:
-                st.error(f"❌ QR insertion failed: {e}")
-        else:
-            st.error("❌ QR image not generated.")
+        try:
+            if len(doc.tables) >= 1 and len(doc.tables[0].rows) >= 1 and len(doc.tables[0].rows[0].cells) >= 1:
+                paragraph = doc.tables[0].rows[0].cells[0].paragraphs[0]
+                paragraph.add_run().add_picture(qr_path, width=Inches(1.4))
+            else:
+                st.warning("⚠️ Template must have at least a 1x1 table to insert QR code.")
+        except Exception as e:
+            st.warning(f"⚠️ QR code insert failed: {e}")
+
+        doc.render(data)
 
         docx_path = os.path.join(tempfile.gettempdir(), f"Certificate_{name}.docx")
         pdf_path = os.path.join(tempfile.gettempdir(), f"Certificate_{name}.pdf")
@@ -224,7 +221,7 @@ if submit:
             convert_to_pdf_asp(docx_path, pdf_path)
         except Exception as e:
             st.error(f"❌ Aspose conversion failed: {e}")
-            pdf_path = docx_path  # fallback
+            pdf_path = docx_path
 
         try:
             send_email(email, pdf_path, data)
@@ -247,7 +244,7 @@ with st.expander("🔐 Admin Panel"):
                 with open(CSV_FILE, "rb") as f:
                     st.download_button("📥 Download CSV", f, file_name="completion_certificates.csv")
             else:
-                st.info("CSV is empty.")
+                st.info("CSV file is empty.")
         else:
             st.info("CSV log not found.")
 
@@ -260,7 +257,7 @@ with st.expander("🔐 Admin Panel"):
             except Exception as e:
                 st.error(f"❌ Failed to load CSV: {e}")
     elif admin_key:
-        st.error("❌ Invalid admin key.")
+        st.error("❌ Invalid key.")
 
 # --- Footer ---
 st.markdown("<hr><center><small>© 2025 SkyHighes Technologies. All Rights Reserved.</small></center>", unsafe_allow_html=True)
