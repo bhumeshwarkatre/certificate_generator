@@ -17,7 +17,7 @@ from email.mime.multipart import MIMEMultipart
 from email import encoders
 import pandas as pd
 
-# ✅ Aspose Cloud Imports (same as 'offer')
+# ✅ Aspose Cloud Imports
 import asposewordscloud
 from asposewordscloud.apis.words_api import WordsApi
 from asposewordscloud.models.requests import UploadFileRequest, SaveAsRequest, DownloadFileRequest
@@ -44,24 +44,20 @@ if not os.path.exists(TEMPLATE_FILE):
     with open(TEMPLATE_FILE, "wb") as f:
         f.write(base64.b64decode(encoded_template))
 
-# ✅ Aspose Setup (same as 'offer')
+# ✅ Aspose Setup
 words_api = WordsApi(ASPOSE_ID, ASPOSE_SECRET)
 
-# ✅ DOCX to PDF using Aspose (same logic from 'offer')
 def convert_to_pdf_asp(word_path, output_path):
     cloud_doc_name = os.path.basename(word_path)
     cloud_pdf_name = cloud_doc_name.replace(".docx", ".pdf")
 
-    # Upload DOCX to Aspose Cloud
     with open(word_path, "rb") as f:
         words_api.upload_file(UploadFileRequest(f, cloud_doc_name))
 
-    # Convert to PDF in cloud
     save_opts = PdfSaveOptionsData(file_name=cloud_pdf_name)
     save_as_request = SaveAsRequest(name=cloud_doc_name, save_options_data=save_opts)
     words_api.save_as(save_as_request)
 
-    # Download converted PDF
     pdf_stream = words_api.download_file(DownloadFileRequest(cloud_pdf_name))
     with open(output_path, "wb") as f:
         f.write(pdf_stream)
@@ -102,13 +98,18 @@ def generate_certificate_key():
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=9))
 
 def generate_qr(data):
-    qr = qrcode.QRCode(box_size=10, border=4)
-    qr.add_data(data)
-    qr.make(fit=True)
-    img = qr.make_image(fill_color="black", back_color="white")
-    path = os.path.join(tempfile.gettempdir(), "qr.png")
-    img.save(path)
-    return path
+    try:
+        qr = qrcode.QRCode(box_size=10, border=0)
+        qr.add_data(data)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white")
+        filename = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8)) + "_qr.png"
+        path = os.path.join(tempfile.gettempdir(), filename)
+        img.save(path)
+        return path
+    except Exception as e:
+        st.error(f"❌ QR code generation failed: {e}")
+        return ""
 
 def send_email(receiver, pdf_path, data):
     msg = MIMEMultipart()
@@ -204,10 +205,13 @@ if submit:
         doc.render(data)
 
         qr_path = generate_qr(f"{name}, {domain}, {month}, {data['start_date']}, {data['end_date']}, {grade}, {cert_id}")
-        try:
-            doc.tables[0].rows[0].cells[0].paragraphs[0].add_run().add_picture(qr_path, width=Inches(1.5))
-        except:
-            st.warning("⚠️ QR code insertion failed.")
+        if not os.path.exists(qr_path):
+            st.error(f"❌ QR code image not found: {qr_path}")
+        else:
+            try:
+                doc.tables[0].rows[0].cells[0].paragraphs[0].add_run().add_picture(qr_path, width=Inches(1.5))
+            except Exception as e:
+                st.warning(f"⚠️ QR code insertion failed: {e}")
 
         docx_path = os.path.join(tempfile.gettempdir(), f"Certificate_{name}.docx")
         pdf_path = os.path.join(tempfile.gettempdir(), f"Certificate_{name}.pdf")
@@ -217,7 +221,7 @@ if submit:
             convert_to_pdf_asp(docx_path, pdf_path)
         except Exception as e:
             st.error(f"❌ Aspose conversion failed: {e}")
-            pdf_path = docx_path  # fallback
+            pdf_path = docx_path
 
         try:
             send_email(email, pdf_path, data)
