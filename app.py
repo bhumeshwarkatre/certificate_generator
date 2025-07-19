@@ -1,3 +1,4 @@
+# ⬇️ All necessary imports
 import os
 import re
 import csv
@@ -9,9 +10,9 @@ import base64
 import streamlit as st
 from datetime import datetime
 from smtplib import SMTP
+from docx import Document  # ✅ Required for inserting QR before rendering
 from docxtpl import DocxTemplate
 from docx.shared import Inches
-from docx import Document
 from email.mime.base import MIMEBase
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -24,7 +25,7 @@ from asposewordscloud.apis.words_api import WordsApi
 from asposewordscloud.models.requests import UploadFileRequest, SaveAsRequest, DownloadFileRequest
 from asposewordscloud.models import PdfSaveOptionsData
 
-# --- Page Setup ---
+# --- Streamlit Config ---
 st.set_page_config("Completion Certificate Generator", layout="wide")
 
 # --- Secrets ---
@@ -34,18 +35,18 @@ ADMIN_KEY = st.secrets["admin"]["key"]
 ASPOSE_ID = st.secrets["aspose"]["app_sid"]
 ASPOSE_SECRET = st.secrets["aspose"]["app_key"]
 
-# --- Files ---
+# --- File Paths ---
 CSV_FILE = "intern_data.csv"
 TEMPLATE_FILE = os.path.join(tempfile.gettempdir(), "completion_template.docx")
 LOGO = "logo.png"
 
-# --- Load Template from base64 ---
+# ✅ Load Word Template from base64
 if not os.path.exists(TEMPLATE_FILE):
     encoded_template = st.secrets["template_base64"]["template_base64"]
     with open(TEMPLATE_FILE, "wb") as f:
         f.write(base64.b64decode(encoded_template))
 
-# --- Aspose Setup ---
+# ✅ Aspose Setup
 words_api = WordsApi(ASPOSE_ID, ASPOSE_SECRET)
 
 def convert_to_pdf_asp(word_path, output_path):
@@ -83,6 +84,24 @@ def generate_qr(data):
     except Exception as e:
         st.error(f"❌ QR code generation failed: {e}")
         return ""
+
+def insert_qr_into_table(doc_path, qr_path):
+    try:
+        doc = Document(doc_path)
+        if not doc.tables or len(doc.tables[0].rows) < 1 or len(doc.tables[0].rows[0].cells) < 1:
+            raise Exception("Template must have at least a 1x1 table to insert QR code.")
+
+        cell = doc.tables[0].rows[0].cells[0]
+        para = cell.paragraphs[0]
+        para.clear()  # Clear any placeholder text
+        para.add_run().add_picture(qr_path, width=Inches(1.4))
+
+        modified_path = os.path.join(tempfile.gettempdir(), "template_with_qr.docx")
+        doc.save(modified_path)
+        return modified_path
+    except Exception as e:
+        st.warning(f"⚠️ QR code insert failed: {e}")
+        return doc_path  # Fallback to original template
 
 def send_email(receiver, pdf_path, data):
     msg = MIMEMultipart()
@@ -128,7 +147,7 @@ def save_to_csv(data, status="Sent"):
             writer.writerow(["Name", "Domain", "Months", "Start Date", "End Date", "Grade", "Certificate ID", "Email", "send_mail"])
         writer.writerow([data['name'], data['domain'], data['month'], data['start_date'], data['end_date'], data['grade'], data['c_id'], data['email'], status])
 
-# --- UI Styling ---
+# --- UI ---
 st.markdown("""
 <style>
 .title-text {
@@ -178,7 +197,7 @@ with st.form("certificate_form"):
     grade = st.selectbox("Grade", ["A+", "A", "B+", "B", "C"])
     submit = st.form_submit_button("🎯 Generate & Send Certificate")
 
-# --- Submit Action ---
+# --- Generate Logic ---
 if submit:
     if not all([name, domain, email]):
         st.error("❌ Please fill all fields.")
@@ -200,25 +219,12 @@ if submit:
         }
 
         save_to_csv(data)
+        qr_path = generate_qr(", ".join(str(v) for v in data.values()))
+        modified_template = insert_qr_into_table(TEMPLATE_FILE, qr_path)
 
-        qr_path = generate_qr(f"{name}, {domain}, {month}, {data['start_date']}, {data['end_date']}, {grade}, {cert_id}")
-
-        # Insert QR before rendering
-        raw_doc = Document(TEMPLATE_FILE)
-        if raw_doc.tables and raw_doc.tables[0].rows and raw_doc.tables[0].rows[0].cells:
-            try:
-                raw_doc.tables[0].rows[0].cells[0].paragraphs[0].add_run().add_picture(qr_path, width=Inches(1.4))
-                temp_template_path = os.path.join(tempfile.gettempdir(), "qr_inserted_template.docx")
-                raw_doc.save(temp_template_path)
-                doc = DocxTemplate(temp_template_path)
-            except Exception as e:
-                st.warning(f"⚠️ QR code insert failed: {e}")
-                doc = DocxTemplate(TEMPLATE_FILE)
-        else:
-            st.warning("⚠️ Template must have at least a 1x1 table to insert QR code.")
-            doc = DocxTemplate(TEMPLATE_FILE)
-
+        doc = DocxTemplate(modified_template)
         doc.render(data)
+
         docx_path = os.path.join(tempfile.gettempdir(), f"Certificate_{name}.docx")
         pdf_path = os.path.join(tempfile.gettempdir(), f"Certificate_{name}.pdf")
         doc.save(docx_path)
