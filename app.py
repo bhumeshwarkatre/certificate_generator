@@ -203,11 +203,14 @@ if submit:
         doc = DocxTemplate(TEMPLATE_FILE)
         doc.render(data)
 
-        # --- Insert QR Code ---
         qr_path = generate_qr(f"{name}, {domain}, {month}, {data['start_date']}, {data['end_date']}, {grade}, {cert_id}")
         if os.path.exists(qr_path):
             try:
-                doc.tables[0].rows[0].cells[0].paragraphs[0].add_run().add_picture(qr_path, width=Inches(1.4))
+                if doc.tables and len(doc.tables[0].rows) > 0 and len(doc.tables[0].rows[0].cells) > 0:
+                    qr_cell = doc.tables[0].rows[0].cells[0]
+                    qr_cell.paragraphs[0].add_run().add_picture(qr_path, width=Inches(1.4))
+                else:
+                    st.warning("⚠️ Template must have at least a 1x1 table to insert QR code.")
             except Exception as e:
                 st.warning(f"⚠️ QR code insert failed: {e}")
         else:
