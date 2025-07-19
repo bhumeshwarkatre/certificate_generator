@@ -9,8 +9,7 @@ import base64
 import streamlit as st
 from datetime import datetime
 from smtplib import SMTP
-from docxtpl import DocxTemplate
-from docxtpl import InlineImage
+from docxtpl import DocxTemplate, InlineImage
 from docx.shared import Inches
 from email.mime.base import MIMEBase
 from email.mime.text import MIMEText
@@ -203,7 +202,6 @@ if submit:
         save_to_csv(data)
 
         doc = DocxTemplate(TEMPLATE_FILE)
-        doc.render(data)
 
         qr_path = generate_qr(f"{name}, {domain}, {month}, {data['start_date']}, {data['end_date']}, {grade}, {cert_id}")
         if not os.path.exists(qr_path):
@@ -212,7 +210,10 @@ if submit:
             try:
                 qr_img = InlineImage(doc, qr_path, width=Inches(1.4))
                 data["qr"] = qr_img
-                doc.render(data)
+            except Exception as e:
+                st.warning(f"⚠️ Failed to insert QR image: {e}")
+
+        doc.render(data)
 
         docx_path = os.path.join(tempfile.gettempdir(), f"Certificate_{name}.docx")
         pdf_path = os.path.join(tempfile.gettempdir(), f"Certificate_{name}.pdf")
