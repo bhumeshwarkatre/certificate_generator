@@ -11,19 +11,20 @@ from datetime import datetime
 from smtplib import SMTP
 from docxtpl import DocxTemplate
 from docx.shared import Inches
+from docx import Document
 from email.mime.base import MIMEBase
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email import encoders
 import pandas as pd
 
-# ✅ Aspose Cloud
+# ✅ Aspose Cloud Imports
 import asposewordscloud
 from asposewordscloud.apis.words_api import WordsApi
 from asposewordscloud.models.requests import UploadFileRequest, SaveAsRequest, DownloadFileRequest
 from asposewordscloud.models import PdfSaveOptionsData
 
-# --- Streamlit Setup ---
+# --- Page Setup ---
 st.set_page_config("Completion Certificate Generator", layout="wide")
 
 # --- Secrets ---
@@ -44,7 +45,7 @@ if not os.path.exists(TEMPLATE_FILE):
     with open(TEMPLATE_FILE, "wb") as f:
         f.write(base64.b64decode(encoded_template))
 
-# ✅ Aspose Setup
+# --- Aspose Setup ---
 words_api = WordsApi(ASPOSE_ID, ASPOSE_SECRET)
 
 def convert_to_pdf_asp(word_path, output_path):
@@ -62,7 +63,7 @@ def convert_to_pdf_asp(word_path, output_path):
     with open(output_path, "wb") as f:
         f.write(pdf_stream)
 
-# --- Utilities ---
+# --- Utility Functions ---
 def format_date(date_obj):
     return date_obj.strftime("%d %B %Y")
 
@@ -93,13 +94,15 @@ def send_email(receiver, pdf_path, data):
     <html><body>
         <p>Dear <strong>{data['name']}</strong>,</p>
         <p>Congratulations on completing your <strong>{data['month']} month</strong> internship at <strong>SkyHighes Technology</strong>!</p>
+        <p><b>Details:</b></p>
         <ul>
             <li><strong>Domain:</strong> {data['domain']}</li>
             <li><strong>Duration:</strong> {data['start_date']} to {data['end_date']}</li>
             <li><strong>Grade:</strong> {data['grade']}</li>
             <li><strong>Certificate ID:</strong> {data['c_id']}</li>
         </ul>
-        <p>Your certificate is attached.</p>
+        <p>Your certificate is attached as a PDF.</p>
+        <p>All the best for your future!</p>
         <p><strong>SkyHighes Technology Team</strong></p>
     </body></html>
     """
@@ -125,7 +128,7 @@ def save_to_csv(data, status="Sent"):
             writer.writerow(["Name", "Domain", "Months", "Start Date", "End Date", "Grade", "Certificate ID", "Email", "send_mail"])
         writer.writerow([data['name'], data['domain'], data['month'], data['start_date'], data['end_date'], data['grade'], data['c_id'], data['email'], status])
 
-# --- UI ---
+# --- UI Styling ---
 st.markdown("""
 <style>
 .title-text {
@@ -175,7 +178,7 @@ with st.form("certificate_form"):
     grade = st.selectbox("Grade", ["A+", "A", "B+", "B", "C"])
     submit = st.form_submit_button("🎯 Generate & Send Certificate")
 
-# --- Generate ---
+# --- Submit Action ---
 if submit:
     if not all([name, domain, email]):
         st.error("❌ Please fill all fields.")
@@ -198,21 +201,24 @@ if submit:
 
         save_to_csv(data)
 
-        doc = DocxTemplate(TEMPLATE_FILE)
-
-        # --- Insert QR Before Rendering ---
         qr_path = generate_qr(f"{name}, {domain}, {month}, {data['start_date']}, {data['end_date']}, {grade}, {cert_id}")
-        try:
-            if len(doc.tables) >= 1 and len(doc.tables[0].rows) >= 1 and len(doc.tables[0].rows[0].cells) >= 1:
-                paragraph = doc.tables[0].rows[0].cells[0].paragraphs[0]
-                paragraph.add_run().add_picture(qr_path, width=Inches(1.4))
-            else:
-                st.warning("⚠️ Template must have at least a 1x1 table to insert QR code.")
-        except Exception as e:
-            st.warning(f"⚠️ QR code insert failed: {e}")
+
+        # Insert QR before rendering
+        raw_doc = Document(TEMPLATE_FILE)
+        if raw_doc.tables and raw_doc.tables[0].rows and raw_doc.tables[0].rows[0].cells:
+            try:
+                raw_doc.tables[0].rows[0].cells[0].paragraphs[0].add_run().add_picture(qr_path, width=Inches(1.4))
+                temp_template_path = os.path.join(tempfile.gettempdir(), "qr_inserted_template.docx")
+                raw_doc.save(temp_template_path)
+                doc = DocxTemplate(temp_template_path)
+            except Exception as e:
+                st.warning(f"⚠️ QR code insert failed: {e}")
+                doc = DocxTemplate(TEMPLATE_FILE)
+        else:
+            st.warning("⚠️ Template must have at least a 1x1 table to insert QR code.")
+            doc = DocxTemplate(TEMPLATE_FILE)
 
         doc.render(data)
-
         docx_path = os.path.join(tempfile.gettempdir(), f"Certificate_{name}.docx")
         pdf_path = os.path.join(tempfile.gettempdir(), f"Certificate_{name}.pdf")
         doc.save(docx_path)
