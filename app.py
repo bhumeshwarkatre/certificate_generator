@@ -17,8 +17,8 @@ from email.mime.multipart import MIMEMultipart
 from email import encoders
 import pandas as pd
 
-# ✅ Aspose Imports
-from asposewordscloud import Configuration, WordsApi
+# ✅ Aspose Words Cloud
+from asposewordscloud import WordsApi
 from asposewordscloud.models.requests import UploadFileRequest, SaveAsRequest, DownloadFileRequest
 from asposewordscloud.models import PdfSaveOptionsData
 
@@ -44,30 +44,28 @@ if not os.path.exists(TEMPLATE_FILE):
         f.write(base64.b64decode(encoded_template))
 
 # ✅ Aspose Setup
-config = Configuration()
-config.client_id = APP_SID
-config.client_secret = APP_KEY
 api = WordsApi(client_id=APP_SID, client_secret=APP_KEY)
 
-# ✅ Convert DOCX to PDF using Aspose
+# ✅ Convert DOCX to PDF using Aspose (like intern app)
 def convert_to_pdf_asp(word_path, output_path):
-    remote_name = os.path.basename(word_path)
-    remote_pdf = remote_name.replace(".docx", ".pdf")
+    cloud_doc_name = os.path.basename(word_path)
+    cloud_pdf_name = cloud_doc_name.replace(".docx", ".pdf")
 
-    # Upload DOCX to cloud
     with open(word_path, "rb") as f:
-        api.upload_file(UploadFileRequest(file_content=f, path=f"Temp/{remote_name}"))
+        upload_result = api.upload_file(UploadFileRequest(f, cloud_doc_name))
 
-    # Convert in cloud to PDF
-    save_opts = PdfSaveOptionsData(file_name=f"Temp/{remote_pdf}")
-    api.save_as(SaveAsRequest(name=f"Temp/{remote_name}", save_options_data=save_opts))
+    if not upload_result.uploaded or cloud_doc_name not in upload_result.uploaded:
+        raise RuntimeError(f"Upload to Aspose failed. File {cloud_doc_name} not uploaded.")
 
-    # Download back
-    result = api.download_file(DownloadFileRequest(path=f"Temp/{remote_pdf}"))
+    save_opts = PdfSaveOptionsData(file_name=cloud_pdf_name)
+    save_as_request = SaveAsRequest(name=cloud_doc_name, save_options_data=save_opts)
+    api.save_as(save_as_request)
+
+    result = api.download_file(DownloadFileRequest(cloud_pdf_name))
     with open(output_path, "wb") as f:
         f.write(result)
 
-# --- CSS Styling ---
+# --- Styling ---
 st.markdown("""
 <style>
 .title-text {
@@ -103,7 +101,7 @@ def generate_certificate_key():
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=9))
 
 def generate_qr(data):
-    qr = qrcode.QRCode(box_size=10, border=4)
+    qr = qrcode.QRCode(box_size=10, border=0)
     qr.add_data(data)
     qr.make(fit=True)
     img = qr.make_image(fill_color="black", back_color="white")
@@ -178,7 +176,7 @@ with st.form("certificate_form"):
     grade = st.selectbox("Grade", ["A+", "A", "B+", "B", "C"])
     submit = st.form_submit_button("🎯 Generate & Send Certificate")
 
-# --- Submit Action ---
+# --- Submit Logic ---
 if submit:
     if not all([name, domain, email]):
         st.error("❌ Please fill all fields.")
@@ -206,7 +204,7 @@ if submit:
 
         qr_path = generate_qr(f"{name}, {domain}, {month}, {data['start_date']}, {data['end_date']}, {grade}, {cert_id}")
         try:
-            doc.tables[0].rows[0].cells[0].paragraphs[0].add_run().add_picture(qr_path, width=Inches(1.5))
+            doc.tables[0].rows[0].cells[0].paragraphs[0].add_run().add_picture(qr_path, width=Inches(1.4))
         except:
             st.warning("⚠️ QR code insertion failed.")
 
@@ -259,4 +257,3 @@ with st.expander("🔐 Admin Panel"):
 
 # --- Footer ---
 st.markdown("<hr><center><small>© 2025 SkyHighes Technologies. All Rights Reserved.</small></center>", unsafe_allow_html=True)
-
