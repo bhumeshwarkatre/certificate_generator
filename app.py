@@ -47,7 +47,7 @@ if not os.path.exists(TEMPLATE_FILE):
 config = Configuration()
 config.client_id = APP_SID
 config.client_secret = APP_KEY
-api = WordsApi(config)
+api = WordsApi(client_id=APP_SID, client_secret=APP_KEY)
 
 # ✅ Convert DOCX to PDF using Aspose
 def convert_to_pdf_asp(word_path, output_path):
