@@ -248,17 +248,6 @@ if submit:
         except Exception as e:
             st.error(f"❌ Email sending failed: {e}")
 
-        # ✅ Test GSheet connectivity
-        try:
-            sheet = get_gsheet()
-            st.success(f"✅ Connected to Google Sheet: {sheet.title}")
-        except Exception as e:
-            st.error(f"❌ Google Sheet connection failed: {type(e).__name__}: {e}")
-            st.write("👀 client_email:", st.secrets["gcp_service_account"]["client_email"])
-            st.write("📄 sheet_id:", st.secrets["gsheets"]["sheet_id"])
-            st.write("🗂️ sheet_name:", st.secrets["gsheets"]["sheet_name"])
-
-        
         # Step 4b: Log to Google Sheet
         try:
             save_to_gsheet(data)
