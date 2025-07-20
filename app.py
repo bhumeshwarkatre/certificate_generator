@@ -11,13 +11,12 @@ from datetime import datetime
 from smtplib import SMTP
 from docxtpl import DocxTemplate
 from docx import Document
-from docx.shared import Inches
+from docx.shared import Inches, Cm
 from email.mime.base import MIMEBase
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email import encoders
 import pandas as pd
-from docx.shared import Cm
 
 # ✅ Aspose Words Cloud
 from asposewordscloud import WordsApi
@@ -199,26 +198,26 @@ if submit:
 
         save_to_csv(data)
 
-        # Step 1: Insert QR before rendering
+        # Step 1: Insert QR Code into template
         qr_path = generate_qr(f"{name}, {domain}, {month}, {data['start_date']}, {data['end_date']}, {grade}, {cert_id}")
         docx_raw = Document(TEMPLATE_FILE)
         try:
             cell = docx_raw.tables[0].rows[0].cells[0]
             para = cell.paragraphs[0] if cell.paragraphs else cell.add_paragraph()
-            para.add_run().add_picture(qr_path, width=Cm(3.6))  # 3.6 cm = 1.42 inch
+            para.add_run().add_picture(qr_path, width=Cm(3.6))  # Consistent size for PDF rendering
             qr_template = os.path.join(tempfile.gettempdir(), "template_with_qr.docx")
             docx_raw.save(qr_template)
         except Exception as e:
             st.warning(f"⚠️ QR insert failed: {e}")
             qr_template = TEMPLATE_FILE
 
-        # Step 2: Render content
+        # Step 2: Render with DocxTemplate
         doc = DocxTemplate(qr_template)
         doc.render(data)
         docx_path = os.path.join(tempfile.gettempdir(), f"Certificate_{name}.docx")
         doc.save(docx_path)
 
-        # Step 3: Convert to PDF
+        # Step 3: Convert to PDF via Aspose
         pdf_path = os.path.join(tempfile.gettempdir(), f"Certificate_{name}.pdf")
         try:
             convert_to_pdf_asp(docx_path, pdf_path)
@@ -226,7 +225,7 @@ if submit:
             st.error(f"❌ Aspose conversion failed: {e}")
             pdf_path = docx_path
 
-        # Step 4: Email and Download
+        # Step 4: Email & Download
         try:
             send_email(email, pdf_path, data)
             st.success(f"✅ Certificate sent to {email}")
