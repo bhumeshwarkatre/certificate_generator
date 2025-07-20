@@ -20,7 +20,7 @@ import pandas as pd
 # ✅ Aspose Imports
 from asposewordscloud import Configuration, WordsApi
 from asposewordscloud.models.requests import UploadFileRequest, SaveAsRequest, DownloadFileRequest
-from asposewordscloud.models import SaveOptionsData
+from asposewordscloud.models import PdfSaveOptionsData
 
 # --- Streamlit Page Setup ---
 st.set_page_config("Completion Certificate Generator", layout="wide")
@@ -59,7 +59,7 @@ def convert_to_pdf_asp(word_path, output_path):
         api.upload_file(UploadFileRequest(file_content=f, path=f"Temp/{remote_name}"))
 
     # Convert in cloud to PDF
-    save_opts = SaveOptionsData(save_format="pdf", file_name=f"Temp/{remote_pdf}")
+    save_opts = PdfSaveOptionsData(file_name=f"Temp/{remote_pdf}")
     api.save_as(SaveAsRequest(name=f"Temp/{remote_name}", save_options_data=save_opts))
 
     # Download back
