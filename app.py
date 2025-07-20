@@ -241,15 +241,27 @@ if submit:
             st.error(f"❌ Aspose conversion failed: {e}")
             pdf_path = docx_path
 
-        # Step 4: Send email & log
+        # Step 4a: Send Email
         try:
             send_email(email, pdf_path, data)
-            save_to_gsheet(data)
             st.success(f"✅ Certificate sent to {email}")
+        except Exception as e:
+            st.error(f"❌ Email sending failed: {e}")
+        
+        # Step 4b: Log to Google Sheet
+        try:
+            save_to_gsheet(data)
+            st.success("✅ Logged to Google Sheet")
+        except Exception as e:
+            st.error(f"❌ Google Sheet logging failed: {e}")
+        
+        # Step 4c: Offer PDF Download
+        try:
             with open(pdf_path, "rb") as f:
                 st.download_button("📥 Download Certificate", f, file_name=os.path.basename(pdf_path))
         except Exception as e:
-            st.error(f"❌ Email or Sheet log failed: {e}")
+            st.warning(f"⚠️ PDF file could not be offered for download: {e}")
+
 
 # --- Footer ---
 st.markdown("<hr><center><small>© 2025 SkyHighes Technologies. All Rights Reserved.</small></center>", unsafe_allow_html=True)
