@@ -204,7 +204,8 @@ if submit:
         try:
             cell = docx_raw.tables[0].rows[0].cells[0]
             para = cell.paragraphs[0] if cell.paragraphs else cell.add_paragraph()
-            para.add_run().add_picture(qr_path, width=Cm(3.6))  # Consistent size for PDF rendering
+            run = para.add_run()
+            run.add_picture(qr_path, width=Inches(1.42), height=Inches(1.42))
             qr_template = os.path.join(tempfile.gettempdir(), "template_with_qr.docx")
             docx_raw.save(qr_template)
         except Exception as e:
