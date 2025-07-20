@@ -253,7 +253,7 @@ if submit:
             save_to_gsheet(data)
             st.success("✅ Logged to Google Sheet")
         except Exception as e:
-            st.error(f"❌ Google Sheet logging failed: {e}")
+            st.error(f"❌ Google Sheet logging failed: {type(e).__name__}: {e}")
         
         # Step 4c: Offer PDF Download
         try:
