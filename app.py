@@ -1,6 +1,5 @@
 import os
 import re
-import csv
 import qrcode
 import random
 import string
@@ -11,30 +10,33 @@ from datetime import datetime
 from smtplib import SMTP
 from docxtpl import DocxTemplate
 from docx import Document
-from docx.shared import Inches, Cm
+from docx.shared import Inches
 from email.mime.base import MIMEBase
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email import encoders
-import pandas as pd
 
 # ✅ Aspose Words Cloud
 from asposewordscloud import WordsApi
 from asposewordscloud.models.requests import UploadFileRequest, SaveAsRequest, DownloadFileRequest
 from asposewordscloud.models import PdfSaveOptionsData
 
-# --- Streamlit Page Setup ---
+# ✅ Google Sheets
+from google.oauth2.service_account import Credentials
+import gspread
+
+# --- Streamlit Config ---
 st.set_page_config("Completion Certificate Generator", layout="wide")
 
 # --- Secrets ---
 EMAIL = st.secrets["email"]["user"]
 PASSWORD = st.secrets["email"]["password"]
-ADMIN_KEY = st.secrets["admin"]["key"]
 APP_SID = st.secrets["aspose"]["app_sid"]
 APP_KEY = st.secrets["aspose"]["app_key"]
+SHEET_ID = st.secrets["gsheets"]["sheet_id"]
+SHEET_NAME = st.secrets["gsheets"]["sheet_name"]
 
 # --- Files ---
-CSV_FILE = "intern_data.csv"
 TEMPLATE_FILE = os.path.join(tempfile.gettempdir(), "completion_template.docx")
 LOGO = "logo.png"
 
@@ -46,6 +48,28 @@ if not os.path.exists(TEMPLATE_FILE):
 
 # ✅ Aspose Setup
 api = WordsApi(client_id=APP_SID, client_secret=APP_KEY)
+
+# ✅ Google Sheets Setup
+def get_gsheet():
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive"
+    ]
+    creds = Credentials.from_service_account_info(
+        st.secrets["gcp_service_account"],
+        scopes=scopes
+    )
+    client = gspread.authorize(creds)
+    return client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
+
+def save_to_gsheet(data, status="Sent"):
+    sheet = get_gsheet()
+    row = [
+        data['name'], data['domain'], data['month'],
+        data['start_date'], data['end_date'],
+        data['grade'], data['c_id'], data['email'], status
+    ]
+    sheet.append_row(row)
 
 # ✅ Convert DOCX to PDF
 def convert_to_pdf_asp(word_path, output_path):
@@ -116,14 +140,6 @@ def send_email(receiver, pdf_path, data):
         server.starttls()
         server.login(EMAIL, PASSWORD)
         server.send_message(msg)
-
-def save_to_csv(data, status="Sent"):
-    exists = os.path.exists(CSV_FILE)
-    with open(CSV_FILE, mode='a', newline='') as f:
-        writer = csv.writer(f)
-        if not exists:
-            writer.writerow(["Name", "Domain", "Months", "Start Date", "End Date", "Grade", "Certificate ID", "Email", "send_mail"])
-        writer.writerow([data['name'], data['domain'], data['month'], data['start_date'], data['end_date'], data['grade'], data['c_id'], data['email'], status])
 
 # --- Styling ---
 st.markdown("""
@@ -196,14 +212,13 @@ if submit:
             "email": email.strip()
         }
 
-        save_to_csv(data)
-
-        # Step 1: Insert QR Code into template
+        # Step 1: Insert QR into DOCX
         qr_path = generate_qr(f"{name}, {domain}, {month}, {data['start_date']}, {data['end_date']}, {grade}, {cert_id}")
         docx_raw = Document(TEMPLATE_FILE)
         try:
             cell = docx_raw.tables[0].rows[0].cells[0]
             para = cell.paragraphs[0] if cell.paragraphs else cell.add_paragraph()
+            para.clear()
             run = para.add_run()
             run.add_picture(qr_path, width=Inches(1.42), height=Inches(1.42))
             qr_template = os.path.join(tempfile.gettempdir(), "template_with_qr.docx")
@@ -212,13 +227,13 @@ if submit:
             st.warning(f"⚠️ QR insert failed: {e}")
             qr_template = TEMPLATE_FILE
 
-        # Step 2: Render with DocxTemplate
+        # Step 2: Render template
         doc = DocxTemplate(qr_template)
         doc.render(data)
         docx_path = os.path.join(tempfile.gettempdir(), f"Certificate_{name}.docx")
         doc.save(docx_path)
 
-        # Step 3: Convert to PDF via Aspose
+        # Step 3: Convert to PDF
         pdf_path = os.path.join(tempfile.gettempdir(), f"Certificate_{name}.pdf")
         try:
             convert_to_pdf_asp(docx_path, pdf_path)
@@ -226,43 +241,15 @@ if submit:
             st.error(f"❌ Aspose conversion failed: {e}")
             pdf_path = docx_path
 
-        # Step 4: Email & Download
+        # Step 4: Send email & log
         try:
             send_email(email, pdf_path, data)
+            save_to_gsheet(data)
             st.success(f"✅ Certificate sent to {email}")
             with open(pdf_path, "rb") as f:
                 st.download_button("📥 Download Certificate", f, file_name=os.path.basename(pdf_path))
         except Exception as e:
-            st.error(f"❌ Email failed: {e}")
-
-# --- Admin Panel ---
-st.divider()
-with st.expander("🔐 Admin Panel"):
-    admin_key = st.text_input("Enter Admin Key", type="password")
-    if admin_key == ADMIN_KEY:
-        st.success("✅ Access granted.")
-        if os.path.exists(CSV_FILE):
-            df = pd.read_csv(CSV_FILE)
-            if not df.empty:
-                st.dataframe(df)
-                with open(CSV_FILE, "rb") as f:
-                    st.download_button("📥 Download CSV", f, file_name="completion_certificates.csv")
-            else:
-                st.info("CSV file is empty.")
-        else:
-            st.info("CSV log not found.")
-
-        st.markdown("<h3 style='color:#1E88E5;'>📥 One-Time CSV Upload</h3>", unsafe_allow_html=True)
-        uploaded_csv = st.file_uploader("Upload Existing Intern CSV", type=["csv"])
-        if uploaded_csv is not None:
-            try:
-                df_upload = pd.read_csv(uploaded_csv)
-                df_upload.to_csv(CSV_FILE, index=False)
-                st.success("✅ CSV uploaded and saved.")
-            except Exception as e:
-                st.error(f"❌ Failed to load CSV: {e}")
-    elif admin_key:
-        st.error("❌ Invalid key.")
+            st.error(f"❌ Email or Sheet log failed: {e}")
 
 # --- Footer ---
 st.markdown("<hr><center><small>© 2025 SkyHighes Technologies. All Rights Reserved.</small></center>", unsafe_allow_html=True)
