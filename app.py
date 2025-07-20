@@ -10,6 +10,7 @@ import streamlit as st
 from datetime import datetime
 from smtplib import SMTP
 from docxtpl import DocxTemplate
+from docx import Document
 from docx.shared import Inches
 from email.mime.base import MIMEBase
 from email.mime.text import MIMEText
@@ -46,7 +47,7 @@ if not os.path.exists(TEMPLATE_FILE):
 # ✅ Aspose Setup
 api = WordsApi(client_id=APP_SID, client_secret=APP_KEY)
 
-# ✅ Convert DOCX to PDF using Aspose (like intern app)
+# ✅ Convert DOCX to PDF
 def convert_to_pdf_asp(word_path, output_path):
     cloud_doc_name = os.path.basename(word_path)
     cloud_pdf_name = cloud_doc_name.replace(".docx", ".pdf")
@@ -58,40 +59,11 @@ def convert_to_pdf_asp(word_path, output_path):
         raise RuntimeError(f"Upload to Aspose failed. File {cloud_doc_name} not uploaded.")
 
     save_opts = PdfSaveOptionsData(file_name=cloud_pdf_name)
-    save_as_request = SaveAsRequest(name=cloud_doc_name, save_options_data=save_opts)
-    api.save_as(save_as_request)
+    api.save_as(SaveAsRequest(name=cloud_doc_name, save_options_data=save_opts))
 
     result = api.download_file(DownloadFileRequest(cloud_pdf_name))
     with open(output_path, "wb") as f:
         f.write(result)
-
-# --- Styling ---
-st.markdown("""
-<style>
-.title-text {
-    font-size: 2rem;
-    font-weight: 700;
-}
-.stButton>button {
-    background-color: #1E88E5;
-    color: white;
-    padding: 0.5rem 1.5rem;
-    border-radius: 8px;
-    font-weight: 600;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# --- Header ---
-with st.container():
-    col_logo, col_title = st.columns([1, 6])
-    with col_logo:
-        if os.path.exists(LOGO):
-            st.image(LOGO, width=80)
-    with col_title:
-        st.markdown('<div class="title-text">SkyHighes Technologies Completion Certificate Portal</div>', unsafe_allow_html=True)
-
-st.divider()
 
 # --- Utility Functions ---
 def format_date(date_obj):
@@ -153,10 +125,37 @@ def save_to_csv(data, status="Sent"):
             writer.writerow(["Name", "Domain", "Months", "Start Date", "End Date", "Grade", "Certificate ID", "Email", "send_mail"])
         writer.writerow([data['name'], data['domain'], data['month'], data['start_date'], data['end_date'], data['grade'], data['c_id'], data['email'], status])
 
-# --- Form UI ---
+# --- Styling ---
+st.markdown("""
+<style>
+.title-text {
+    font-size: 2rem;
+    font-weight: 700;
+}
+.stButton>button {
+    background-color: #1E88E5;
+    color: white;
+    padding: 0.5rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# --- Header ---
+with st.container():
+    col_logo, col_title = st.columns([1, 6])
+    with col_logo:
+        if os.path.exists(LOGO):
+            st.image(LOGO, width=80)
+    with col_title:
+        st.markdown('<div class="title-text">SkyHighes Technologies Completion Certificate Portal</div>', unsafe_allow_html=True)
+
+st.divider()
+
+# --- Form ---
 with st.form("certificate_form"):
     st.subheader("🎓 Generate Completion Certificate")
-
     col1, col2, col3 = st.columns(3)
     with col1:
         name = st.text_input("Intern Name")
@@ -176,7 +175,7 @@ with st.form("certificate_form"):
     grade = st.selectbox("Grade", ["A+", "A", "B+", "B", "C"])
     submit = st.form_submit_button("🎯 Generate & Send Certificate")
 
-# --- Submit Logic ---
+# --- On Submit ---
 if submit:
     if not all([name, domain, email]):
         st.error("❌ Please fill all fields.")
@@ -199,25 +198,34 @@ if submit:
 
         save_to_csv(data)
 
-        doc = DocxTemplate(TEMPLATE_FILE)
-        doc.render(data)
-
+        # Step 1: Insert QR before rendering
         qr_path = generate_qr(f"{name}, {domain}, {month}, {data['start_date']}, {data['end_date']}, {grade}, {cert_id}")
+        docx_raw = Document(TEMPLATE_FILE)
         try:
-            doc.tables[0].rows[0].cells[0].paragraphs[0].add_run().add_picture(qr_path, width=Inches(1.4))
-        except:
-            st.warning("⚠️ QR code insertion failed.")
+            cell = docx_raw.tables[0].rows[0].cells[0]
+            para = cell.paragraphs[0] if cell.paragraphs else cell.add_paragraph()
+            para.add_run().add_picture(qr_path, width=Inches(1.4))
+            qr_template = os.path.join(tempfile.gettempdir(), "template_with_qr.docx")
+            docx_raw.save(qr_template)
+        except Exception as e:
+            st.warning(f"⚠️ QR insert failed: {e}")
+            qr_template = TEMPLATE_FILE
 
+        # Step 2: Render content
+        doc = DocxTemplate(qr_template)
+        doc.render(data)
         docx_path = os.path.join(tempfile.gettempdir(), f"Certificate_{name}.docx")
-        pdf_path = os.path.join(tempfile.gettempdir(), f"Certificate_{name}.pdf")
         doc.save(docx_path)
 
+        # Step 3: Convert to PDF
+        pdf_path = os.path.join(tempfile.gettempdir(), f"Certificate_{name}.pdf")
         try:
             convert_to_pdf_asp(docx_path, pdf_path)
         except Exception as e:
             st.error(f"❌ Aspose conversion failed: {e}")
             pdf_path = docx_path
 
+        # Step 4: Email and Download
         try:
             send_email(email, pdf_path, data)
             st.success(f"✅ Certificate sent to {email}")
