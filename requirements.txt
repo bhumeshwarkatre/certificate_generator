@@ -5,4 +5,5 @@ qrcode
 pandas
 aspose-words-cloud
 pycryptodome
-gspread google-auth
+gspread
+google-auth
