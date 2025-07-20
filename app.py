@@ -17,6 +17,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email import encoders
 import pandas as pd
+from docx.shared import Cm
 
 # ✅ Aspose Words Cloud
 from asposewordscloud import WordsApi
@@ -204,7 +205,7 @@ if submit:
         try:
             cell = docx_raw.tables[0].rows[0].cells[0]
             para = cell.paragraphs[0] if cell.paragraphs else cell.add_paragraph()
-            para.add_run().add_picture(qr_path, width=Inches(1.4))
+            para.add_run().add_picture(qr_path, width=Cm(3.6))  # 3.6 cm = 1.42 inch
             qr_template = os.path.join(tempfile.gettempdir(), "template_with_qr.docx")
             docx_raw.save(qr_template)
         except Exception as e:
