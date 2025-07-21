@@ -16,12 +16,12 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email import encoders
 
-# ✅ Aspose Words Cloud
+# Aspose Words Cloud
 from asposewordscloud import WordsApi
 from asposewordscloud.models.requests import UploadFileRequest, SaveAsRequest, DownloadFileRequest
 from asposewordscloud.models import PdfSaveOptionsData
 
-# ✅ Google Sheets
+#  Google Sheets
 from google.oauth2.service_account import Credentials
 import gspread
 
@@ -46,10 +46,10 @@ if not os.path.exists(TEMPLATE_FILE):
     with open(TEMPLATE_FILE, "wb") as f:
         f.write(base64.b64decode(encoded_template))
 
-# ✅ Aspose Setup
+#  Aspose Setup
 api = WordsApi(client_id=APP_SID, client_secret=APP_KEY)
 
-# ✅ Google Sheets Setup
+#  Google Sheets Setup
 def get_gsheet():
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
@@ -64,14 +64,17 @@ def get_gsheet():
 
 def save_to_gsheet(data, status="Sent"):
     sheet = get_gsheet()
+
+    start_sheet_date = datetime.strptime(data["start_date"], "%d %B %Y").strftime("%d-%b-%y")
+    end_sheet_date = datetime.strptime(data["end_date"], "%d %B %Y").strftime("%d-%b-%y")
+    
     row = [
-        data['name'], data['domain'], data['month'],
-        data['start_date'], data['end_date'],
-        data['grade'], data['c_id'], data['email'], status
+        data['name'], data['domain'], data['month'],start_sheet_date,
+        end_sheet_date,data['grade'], data['c_id'], data['email'], status
     ]
     sheet.append_row(row)
 
-# ✅ Convert DOCX to PDF
+#  Convert DOCX to PDF
 def convert_to_pdf_asp(word_path, output_path):
     cloud_doc_name = os.path.basename(word_path)
     cloud_pdf_name = cloud_doc_name.replace(".docx", ".pdf")
@@ -109,7 +112,7 @@ def send_email(receiver, pdf_path, data):
     msg = MIMEMultipart()
     msg['From'] = EMAIL
     msg['To'] = receiver
-    msg['Subject'] = f"🎉 Completion Certificate - {data['name']}"
+    msg['Subject'] = f" Completion Certificate - {data['name']}"
 
     html = f"""
     <html><body>
@@ -189,16 +192,16 @@ with st.form("certificate_form"):
         end_date = st.date_input("End Date", value=datetime.today())
 
     grade = st.selectbox("Grade", ["A+", "A", "B+", "B", "C"])
-    submit = st.form_submit_button("🎯 Generate & Send Certificate")
+    submit = st.form_submit_button(" Generate & Send Certificate")
 
 # --- On Submit ---
 if submit:
     if not all([name, domain, email]):
-        st.error("❌ Please fill all fields.")
+        st.error(" Please fill all fields.")
     elif end_date < start_date:
-        st.warning("⚠️ End date cannot be before start date.")
+        st.warning(" End date cannot be before start date.")
     elif not re.match(r"[^@]+@[^@]+\.[^@]+", email):
-        st.warning("⚠️ Invalid email.")
+        st.warning(" Invalid email.")
     else:
         cert_id = generate_certificate_key()
         data = {
@@ -224,7 +227,7 @@ if submit:
             qr_template = os.path.join(tempfile.gettempdir(), "template_with_qr.docx")
             docx_raw.save(qr_template)
         except Exception as e:
-            st.warning(f"⚠️ QR insert failed: {e}")
+            st.warning(f" QR insert failed: {e}")
             qr_template = TEMPLATE_FILE
 
         # Step 2: Render template
@@ -244,23 +247,23 @@ if submit:
         # Step 4a: Send Email
         try:
             send_email(email, pdf_path, data)
-            st.success(f"✅ Certificate sent to {email}")
+            st.success(f" Certificate sent to {email}")
         except Exception as e:
-            st.error(f"❌ Email sending failed: {e}")
+            st.error(f" Email sending failed: {e}")
 
         # Step 4b: Log to Google Sheet
         try:
             save_to_gsheet(data)
-            st.success("✅ Logged to Google Sheet")
+            st.success(" Logged to Google Sheet")
         except Exception as e:
-            st.error(f"❌ Google Sheet logging failed: {type(e).__name__}: {e}")
+            st.error(f" Google Sheet logging failed: {type(e).__name__}: {e}")
         
         # Step 4c: Offer PDF Download
         try:
             with open(pdf_path, "rb") as f:
-                st.download_button("📥 Download Certificate", f, file_name=os.path.basename(pdf_path))
+                st.download_button(" Download Certificate", f, file_name=os.path.basename(pdf_path))
         except Exception as e:
-            st.warning(f"⚠️ PDF file could not be offered for download: {e}")
+            st.warning(f"⚠ PDF file could not be offered for download: {e}")
 
 
 # --- Footer ---
