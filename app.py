@@ -112,7 +112,7 @@ def send_email(receiver, pdf_path, data):
     msg = MIMEMultipart()
     msg['From'] = EMAIL
     msg['To'] = receiver
-    msg['Subject'] = f"🎓 Completion Certificate - {data['name']}"
+    msg['Subject'] = f"🎉 Congratulations {data['name']}! Your Internship Completion Certificate from SkyHighes Technology"
 
     html = f"""
     <!DOCTYPE html>
