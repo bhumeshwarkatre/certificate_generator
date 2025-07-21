@@ -21,7 +21,7 @@ from asposewordscloud import WordsApi
 from asposewordscloud.models.requests import UploadFileRequest, SaveAsRequest, DownloadFileRequest
 from asposewordscloud.models import PdfSaveOptionsData
 
-#  Google Sheets
+# Google Sheets
 from google.oauth2.service_account import Credentials
 import gspread
 
@@ -46,10 +46,10 @@ if not os.path.exists(TEMPLATE_FILE):
     with open(TEMPLATE_FILE, "wb") as f:
         f.write(base64.b64decode(encoded_template))
 
-#  Aspose Setup
+# --- Aspose Setup ---
 api = WordsApi(client_id=APP_SID, client_secret=APP_KEY)
 
-#  Google Sheets Setup
+# --- Google Sheets Setup ---
 def get_gsheet():
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
@@ -64,17 +64,16 @@ def get_gsheet():
 
 def save_to_gsheet(data, status="Sent"):
     sheet = get_gsheet()
-
     start_sheet_date = datetime.strptime(data["start_date"], "%d %B %Y").strftime("%d-%b-%y")
     end_sheet_date = datetime.strptime(data["end_date"], "%d %B %Y").strftime("%d-%b-%y")
-    
     row = [
-        data['name'], data['domain'], data['month'],start_sheet_date,
-        end_sheet_date,data['grade'], data['c_id'], data['email'], status
+        data['name'], data['domain'], data['month'],
+        start_sheet_date, end_sheet_date, data['grade'],
+        data['c_id'], data['email'], status
     ]
     sheet.append_row(row)
 
-#  Convert DOCX to PDF
+# --- Convert DOCX to PDF via Aspose ---
 def convert_to_pdf_asp(word_path, output_path):
     cloud_doc_name = os.path.basename(word_path)
     cloud_pdf_name = cloud_doc_name.replace(".docx", ".pdf")
@@ -108,27 +107,52 @@ def generate_qr(data):
     img.save(path)
     return path
 
+# --- Send Email ---
 def send_email(receiver, pdf_path, data):
     msg = MIMEMultipart()
     msg['From'] = EMAIL
     msg['To'] = receiver
-    msg['Subject'] = f" Completion Certificate - {data['name']}"
+    msg['Subject'] = f"🎓 Completion Certificate - {data['name']}"
 
     html = f"""
-    <html><body>
-        <p>Dear <strong>{data['name']}</strong>,</p>
-        <p>Congratulations on completing your <strong>{data['month']} month</strong> internship at <strong>SkyHighes Technology</strong>!</p>
-        <p><b>Details:</b></p>
-        <ul>
-            <li><strong>Domain:</strong> {data['domain']}</li>
-            <li><strong>Duration:</strong> {data['start_date']} to {data['end_date']}</li>
-            <li><strong>Grade:</strong> {data['grade']}</li>
-            <li><strong>Certificate ID:</strong> {data['c_id']}</li>
+    <!DOCTYPE html>
+    <html lang="en">
+    <head> 
+      <meta charset="UTF-8">
+      <title>Internship Completion - SkyHighes Technology</title>
+    </head>
+    <body style="font-family: Arial, sans-serif; background-color: #f2f2f2; padding: 20px; margin: 0;">
+      <div style="max-width: 600px; margin: auto; background-color: #ffffff; padding: 25px; border-radius: 10px; box-shadow: 0 0 15px rgba(0,0,0,0.05); color: #333333; line-height: 1.6;">
+        <p style="font-size: 16px;">
+          Dear <strong>{data['name']}</strong>,<br>
+          Congratulations on successfully completing your <strong>{data['month']}-Month Internship</strong> at 
+          <strong>SkyHighes Technology</strong>! 🎉
+        </p>
+        <p style="font-size: 16px;">
+          Your dedication and hard work have been commendable, and we are pleased to award you this certificate.
+        </p>
+        <h3 style="color: #0073e6; margin-top: 25px;">Internship Details:</h3>
+        <ul style="list-style-type: none; padding: 0; font-size: 15px;">
+          <li>🏆 <strong>Intern Name:</strong> {data['name']}</li>
+          <li>💻 <strong>Domain:</strong> {data['domain']}</li>
+          <li>📅 <strong>Start Date:</strong> {data['start_date']}</li>
+          <li>⏳ <strong>End Date:</strong> {data['end_date']}</li>
+          <li>🏅 <strong>Grade:</strong> {data['grade']}</li>
+          <li>📜 <strong>Certificate ID:</strong> {data['c_id']}</li>
         </ul>
-        <p>Your certificate is attached as a PDF.</p>
-        <p>All the best for your future!</p>
-        <p><strong>SkyHighes Technology Team</strong></p>
-    </body></html>
+        <p style="font-size: 16px;">
+          Please find your <strong>Internship Completion Certificate</strong> attached to this email.
+        </p>
+        <p style="font-size: 16px;">
+          We wish you all the best in your future endeavors. Keep shining! 🌟
+        </p>
+        <p style="margin-top: 30px; font-size: 16px;">
+          Best Regards,<br>
+          <strong>SkyHighes Technology Team</strong>
+        </p>
+      </div>
+    </body>
+    </html>
     """
     msg.attach(MIMEText(html, 'html'))
 
@@ -215,7 +239,7 @@ if submit:
             "email": email.strip()
         }
 
-        # Step 1: Insert QR into DOCX
+        # Step 1: Insert QR
         qr_path = generate_qr(f"{name}, {domain}, {month}, {data['start_date']}, {data['end_date']}, {grade}, {cert_id}")
         docx_raw = Document(TEMPLATE_FILE)
         try:
@@ -230,7 +254,7 @@ if submit:
             st.warning(f" QR insert failed: {e}")
             qr_template = TEMPLATE_FILE
 
-        # Step 2: Render template
+        # Step 2: Render DOCX
         doc = DocxTemplate(qr_template)
         doc.render(data)
         docx_path = os.path.join(tempfile.gettempdir(), f"Certificate_{name}.docx")
@@ -244,27 +268,26 @@ if submit:
             st.error(f"❌ Aspose conversion failed: {e}")
             pdf_path = docx_path
 
-        # Step 4a: Send Email
+        # Step 4: Send Email
         try:
             send_email(email, pdf_path, data)
             st.success(f" Certificate sent to {email}")
         except Exception as e:
             st.error(f" Email sending failed: {e}")
 
-        # Step 4b: Log to Google Sheet
+        # Step 5: Log to Google Sheet
         try:
             save_to_gsheet(data)
             st.success(" Logged to Google Sheet")
         except Exception as e:
             st.error(f" Google Sheet logging failed: {type(e).__name__}: {e}")
         
-        # Step 4c: Offer PDF Download
+        # Step 6: Offer Download
         try:
             with open(pdf_path, "rb") as f:
                 st.download_button(" Download Certificate", f, file_name=os.path.basename(pdf_path))
         except Exception as e:
             st.warning(f"⚠ PDF file could not be offered for download: {e}")
-
 
 # --- Footer ---
 st.markdown("<hr><center><small>© 2025 SkyHighes Technologies. All Rights Reserved.</small></center>", unsafe_allow_html=True)
